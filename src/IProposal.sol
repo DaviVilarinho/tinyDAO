@@ -4,7 +4,7 @@ import "DividendManager.sol"
 
 interface IProposal {
   function executeProposal() public;
-  function wasProfitable() public view;
   function isFinished() public view;
+  function getProfits() returns int;
   function distributeProfits(address proposer, DividendManager manager);
 }

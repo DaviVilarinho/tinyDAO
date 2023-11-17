@@ -40,9 +40,14 @@ contract TinyDAO {
 
   constructor (uint256 max_concurrent_proposals) {
     daoGovernanceToken = new DaoGovernanceToken();
+    daoGovernanceToken.transfer(msg.sender, daoGovernanceToken.balanceOf(this));
     concurrentProposals = 0;
     MAX_CONCURRENT_PROPOSALS = max_concurrent_proposals;
     dividendManager = new EqualDividendManager(address(this), daoGovernanceToken);
+  }
+
+  function getDaoGovernanceToken() returns ERC20 view public {
+    return daoGovernanceToken;
   }
 
   function vote(address who, uint256 id, Votes vote) public {

@@ -6,12 +6,11 @@ import "YetAnotherToken.sol"
 
 contract YetAnotherLossyProposal is IProposal {
   bool isFinished;
-  bool isProfitable;
   ERC20 token;
+  int profits;
 
   constructor() {
     isFinished = false;
-    isProfitable = false;
     token = new YetAnotherToken();
   }
 
@@ -20,8 +19,15 @@ contract YetAnotherLossyProposal is IProposal {
     uint contractAllowance = token.allowance(msg.sender, address(this));
     require(contractAllowance > 0, "O contrato deve ter tokens transferíveis...");
     token.transferFrom(msg.sender, address(this), contractAllowance);
+    token.transfer(0x0, contractAllowance);
+    profits = token.balanceOf(address(this)) - contractAllowance;
     isFinished = true;
   }
-  function wasProfitable() public view { return wasProfitable; }
   function isFinished() public view { return isFinished; }
+  function getProfits() returns int { return profits; }
+
+  function distributeProfits(address proposer, DividendManager manager) {
+    require (isFinished(), "Nao foi executado ainda!");
+    manager.distributeProfits(proposer, token, getProfits()) public;
+  }
 }
