@@ -14,9 +14,6 @@ contract TinyDAO {
   event Concluded(uint256 id);
   event Rejected(uint256 id);
   event Vote(uint256 id, address who, Votes vote);
-  event Rewarded(uint256 id, address who, uint daoTokens);
-  event Punished(uint256 id, address who, uint daoTokens);
-
   struct Proposal {
     uint256 id;
     address proposer;
@@ -31,16 +28,21 @@ contract TinyDAO {
     mapping (address => Votes) votesByAddress;
 
     ProposalState proposalState;
+
+    boolean isUpgrade;
+    DividendManager newDividendManager;
   }
 
   mapping(id => Proposal) proposals;
   uint256 concurrentProposals;
   uint256 MAX_CONCURRENT_PROPOSALS;
+  IDividendManager dividendManager;
 
   constructor (uint256 max_concurrent_proposals) {
     daoGovernanceToken = new DaoGovernanceToken();
     concurrentProposals = 0;
     MAX_CONCURRENT_PROPOSALS = max_concurrent_proposals;
+    dividendManager = new EqualDividendManager(address(this), daoGovernanceToken);
   }
 
   function vote(address who, uint256 id, Votes vote) public {
@@ -65,27 +67,28 @@ contract TinyDAO {
     emit Vote(id, who, vote);
   }
 
-  function executeProposal(uint256 id) public {
+  function upgrade(uint256 id) public {
+    require(proposals[id].isUpgrade, "Proposta nao e upgrade");
     require(proposals[id].id != 0x0, "Proposta deve existir...");
     require(proposals[id].proposalState == ProposalState.Approved, "Proposta deve estar aprovada...");
     concurrentProposals--;
     proposals[id].proposalState = ProposalState.Done;
     emit Concluded(id);
 
-    uint balanceBefore = proposals[id].tokenType.balanceOf(address(this));
-    proposals[id].tokenType.allow(address(proposals[id].oneProposal),
-                                  proposals[id].amount);
-    proposals[id].oneProposal.executeProposal();
+    dividendManager = proposals[id].newDividendManager;
+  }
+  function executeProposal(uint256 id) public {
+    require(proposals[id].isUpgrade == false, "Proposta e upgrade");
+    require(proposals[id].id != 0x0, "Proposta deve existir...");
+    require(proposals[id].proposalState == ProposalState.Approved, "Proposta deve estar aprovada...");
+    concurrentProposals--;
+    proposals[id].proposalState = ProposalState.Done;
+    emit Concluded(id);
 
-    uint balanceAfter = proposals[id].tokenType.balanceOf(address(this));
-    int profit = balanceAfter - balanceBefore;
-    if (profit >= 0) {
-      emit Rewarded(id, proposals[id].proposer, profit);
-      daoGovernanceToken.reward(proposals[id].proposer, profit);
-    } else {
-      emit Punished(id, proposals[id].proposer, profit);
-      daoGovernanceToken.punish(proposals[id].proposer, profit);
-    }
+    proposals[id].tokenType.approve(address(proposals[id].oneProposal),
+                                    proposals[id].amount);
+    proposals[id].oneProposal.executeProposal();
+    proposals[id].oneProposal.distributeProfits(proposals[id].proposer, dividendManager);
   }
 
   function verifyVoted(uint256 id) public bool {
@@ -102,6 +105,28 @@ contract TinyDAO {
       return true;
     }
     return false;
+  }
+
+  function doUpgradeProposal(uint256 id,
+                             string description,
+                             DividendManager newDividendManager) public {
+    require(daoGovernanceToken.balanceOf(msg.sender) > 0), "Apenas donos do token podem propor!");
+    require(proposals[id] == 0x0, "Proposta ja existe");
+    require(concurrentProposals < MAX_CONCURRENT_PROPOSALS, "Vote primeiro nas propostas existentes antes de exceder nosso limite!");
+    Proposal storage newProposal;
+    newProposal.id = id;
+    newProposal.description = description;
+    newProposal.votesFor = 0;
+    newProposal.votesAgainst = 0;
+    newProposal.proposalState = ProposalState.Proposed;
+    newProposal.isUpgrade = true;
+    newProposal.newDividendManager = newDividendManager;
+    proposals[id] = newProposal;
+    concurrentProposals++;
+
+    emit Proposed(id);
+
+    vote(msg.sender, id, Votes.VoteFor);
   }
 
   function doProposal(uint256 id,
@@ -126,6 +151,4 @@ contract TinyDAO {
 
     vote(msg.sender, id, Votes.VoteFor);
   }
-
-
 }

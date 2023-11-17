@@ -8,16 +8,23 @@ contract DaoGovernanceToken is ERC20 {
     _mint(msg.sender, 1000);
   }
 
+  event Rewarded(address who, uint daoTokens);
+  event Punished(address who, uint daoTokens);
+
   function reward(address who, uint tokens) public {
-      _mint(who, tokens);
+    _mint(who, tokens);
+    emit Rewarded(who, tokens);
   }
 
   function punish(address who, uint tokens) public {
     uint punishedBalance = balanceOf(who);
-    if (punishedBalance < tokens) {
-      _burn(who, tokens);
-    } else {
-      _burn(who, punishedBalance);
+    if (tokens != 0) {
+      if (punishedBalance < tokens) {
+        _burn(who, tokens);
+      } else {
+        _burn(who, punishedBalance);
+      }
     }
+    emit Punished(who, tokens);
   }
 }

@@ -6,5 +6,5 @@ interface IProposal {
   function executeProposal() public;
   function wasProfitable() public view;
   function isFinished() public view;
-  function distributeProfits(address dao, address proposer, DividendManager manager);
+  function distributeProfits(address proposer, DividendManager manager);
 }
