@@ -1,10 +1,8 @@
 pragma solidity ^0.8.13;
 
-import "DividendManager.sol"
+import "src/IDividendManager.sol";
 
 interface IProposal {
-  function executeProposal() public;
-  function isFinished() public view;
-  function getProfits() returns int;
-  function distributeProfits(address proposer, DividendManager manager);
+  function executeProposal() external;
+  function distributeProfits(address proposer, IDividendManager manager) external;
 }

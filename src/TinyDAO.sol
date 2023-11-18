@@ -1,13 +1,14 @@
 pragma solidity ^0.8.13;
 
 import "OpenZeppelin/openzeppelin-contracts@3.0.0/contracts/token/ERC20/ERC20.sol";
-import "IProposal.sol"
-import "DaoGovernanceToken.sol"
+import "src/IProposal.sol";
+import "src/DaoGovernanceToken.sol";
+import "src/EqualDividendManager.sol";
 
 contract TinyDAO {
-  ERC20 daoGovernanceToken;
-  enum Votes { NoVote, VoteFor, VoteAgainst };
-  enum ProposalState { Proposed, Approved, Rejected, Done };
+  DaoGovernanceToken daoGovernanceToken;
+  enum Votes { NoVote, VoteFor, VoteAgainst }
+  enum ProposalState { Proposed, Approved, Rejected, Done }
 
   event Proposed(uint256 id);
   event Approved(uint256 id);
@@ -29,30 +30,31 @@ contract TinyDAO {
 
     ProposalState proposalState;
 
-    boolean isUpgrade;
-    DividendManager newDividendManager;
+    bool isUpgrade;
+    IDividendManager newDividendManager;
   }
 
-  mapping(id => Proposal) proposals;
+  mapping(uint => Proposal) proposals;
   uint256 concurrentProposals;
   uint256 MAX_CONCURRENT_PROPOSALS;
   IDividendManager dividendManager;
 
   constructor (uint256 max_concurrent_proposals) {
-    daoGovernanceToken = new DaoGovernanceToken();
-    daoGovernanceToken.transfer(msg.sender, daoGovernanceToken.balanceOf(this));
+    daoGovernanceToken = new DaoGovernanceToken("DaoGovernanceToken", "DGT");
+    daoGovernanceToken.transfer(msg.sender, daoGovernanceToken.balanceOf(address(this)));
     concurrentProposals = 0;
     MAX_CONCURRENT_PROPOSALS = max_concurrent_proposals;
     dividendManager = new EqualDividendManager(address(this), daoGovernanceToken);
   }
 
-  function getDaoGovernanceToken() returns ERC20 view public {
+  function getDaoGovernanceToken() public view returns (DaoGovernanceToken) {
     return daoGovernanceToken;
   }
 
-  function vote(address who, uint256 id, Votes vote) public {
+  function vote(address who, uint256 id, Votes voterVote) public {
+    require(msg.sender == address(this) || msg.sender == who, "Somente o proprio ou o contrato vota");
     require(proposals[id].id != 0x0, "Proposta deve existir...");
-    require(proposals[id].proposalState == ProposalState.Proposed, "Proposta deve estar em votação...");
+    require(proposals[id].proposalState == ProposalState.Proposed, "Proposta deve estar em votacao...");
     uint256 votesCount = daoGovernanceToken.balanceOf(who);
     require(votesCount > 0, "Voce precisa de token para votar!");
     // retire se necessário
@@ -63,13 +65,13 @@ contract TinyDAO {
     }
 
     // incrementar o voto se necessário
-    if (vote == Votes.VoteAgainst) {
+    if (voterVote == Votes.VoteAgainst) {
       proposals[id].votesAgainst += votesCount;
-    } else if (vote == Votes.VoteFor) {
+    } else if (voterVote == Votes.VoteFor) {
       proposals[id].votesFor += votesCount;
     }
 
-    emit Vote(id, who, vote);
+    emit Vote(id, who, voterVote);
   }
 
   function upgrade(uint256 id) public {
@@ -86,7 +88,6 @@ contract TinyDAO {
     require(proposals[id].isUpgrade == false, "Proposta e upgrade");
     require(proposals[id].id != 0x0, "Proposta deve existir...");
     require(proposals[id].proposalState == ProposalState.Approved, "Proposta deve estar aprovada...");
-    concurrentProposals--;
     proposals[id].proposalState = ProposalState.Done;
     emit Concluded(id);
 
@@ -96,16 +97,19 @@ contract TinyDAO {
     proposals[id].oneProposal.distributeProfits(proposals[id].proposer, dividendManager);
   }
 
-  function verifyVoted(uint256 id) public bool {
+  function verifyVoted(uint256 id) public returns (bool) {
     require(proposals[id].id != 0x0, "Proposta deve existir...");
     uint256 daoTokenAmount = daoGovernanceToken.totalSupply();
-    if (proposals[id].votesFor > daoTokenAmount / 2) {
+    uint quorum = daoTokenAmount / 2;
+    if (proposals[id].votesFor > quorum) {
       proposals[id].proposalState = ProposalState.Approved;
+      concurrentProposals--;
       emit Approved(id);
       return true;
     }
-    if (proposals[id].votesAgainst > daoTokenAmount / 2) {
+    if (proposals[id].votesAgainst > quorum) {
       proposals[id].proposalState = ProposalState.Rejected;
+      concurrentProposals--;
       emit Rejected(id);
       return true;
     }
@@ -113,20 +117,19 @@ contract TinyDAO {
   }
 
   function doUpgradeProposal(uint256 id,
-                             string description,
-                             DividendManager newDividendManager) public {
-    require(daoGovernanceToken.balanceOf(msg.sender) > 0), "Apenas donos do token podem propor!");
-    require(proposals[id] == 0x0, "Proposta ja existe");
+                             string memory description,
+                             IDividendManager newDividendManager) public {
+    require(daoGovernanceToken.balanceOf(msg.sender) > 0, "Apenas donos do token podem propor!");
+    require(id != 0x0, "Proposta nao pode ser 0");
+    require(proposals[id].id == 0x0, "Proposta ja existe");
     require(concurrentProposals < MAX_CONCURRENT_PROPOSALS, "Vote primeiro nas propostas existentes antes de exceder nosso limite!");
-    Proposal storage newProposal;
-    newProposal.id = id;
-    newProposal.description = description;
-    newProposal.votesFor = 0;
-    newProposal.votesAgainst = 0;
-    newProposal.proposalState = ProposalState.Proposed;
-    newProposal.isUpgrade = true;
-    newProposal.newDividendManager = newDividendManager;
-    proposals[id] = newProposal;
+    proposals[id].id = id;
+    proposals[id].description = description;
+    proposals[id].votesFor = 0;
+    proposals[id].votesAgainst = 0;
+    proposals[id].proposalState = ProposalState.Proposed;
+    proposals[id].isUpgrade = true;
+    proposals[id].newDividendManager = newDividendManager;
     concurrentProposals++;
 
     emit Proposed(id);
@@ -135,21 +138,22 @@ contract TinyDAO {
   }
 
   function doProposal(uint256 id,
-                      string description,
+                      string memory description,
                       ERC20 tokenType,
+                      IProposal proposalContract,
                       uint256 amount) public {
-    require(daoGovernanceToken.balanceOf(msg.sender) > 0), "Apenas donos do token podem propor!");
-    require(proposals[id] == 0x0, "Proposta ja existe");
+    require(daoGovernanceToken.balanceOf(msg.sender) > 0, "Apenas donos do token podem propor!");
+    require(id != 0x0, "Proposta nao pode ser 0");
+    require(proposals[id].id == 0x0, "Proposta ja existe");
     require(concurrentProposals < MAX_CONCURRENT_PROPOSALS, "Vote primeiro nas propostas existentes antes de exceder nosso limite!");
-    Proposal storage newProposal;
-    newProposal.id = id;
-    newProposal.description = description;
-    newProposal.tokenType = tokenType;
-    newProposal.amount = amount;
-    newProposal.votesFor = 0;
-    newProposal.votesAgainst = 0;
-    newProposal.proposalState = ProposalState.Proposed;
-    proposals[id] = newProposal;
+    proposals[id].id = id;
+    proposals[id].description = description;
+    proposals[id].tokenType = tokenType;
+    proposals[id].amount = amount;
+    proposals[id].votesFor = 0;
+    proposals[id].votesAgainst = 0;
+    proposals[id].oneProposal = proposalContract;
+    proposals[id].proposalState = ProposalState.Proposed;
     concurrentProposals++;
 
     emit Proposed(id);
