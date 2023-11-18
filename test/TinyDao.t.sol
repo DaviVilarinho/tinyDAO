@@ -21,13 +21,15 @@ contract TinyDAOTest is Test {
 
   function setUp() public {
     vm.startPrank(daoOwner);
-    yat = new YetAnotherToken();
-    acceptedProposal = new YetAnotherLossyProposal(yat);
-    gainProposal = new YetAnotherGainProposal(yat);
-    yat.approve(address(gainProposal), startingGainOffered);
-    tinyDAO = new TinyDAO(MAX_CONCURRENT_PROPOSALS);
-    tinyDAO.getDaoGovernanceToken().transfer(daoShareholder1, BASE_SHAREHOLDERS_AMOUNT);
+    yat = new YetAnotherToken(); // criar token dummy para usar
+    acceptedProposal = new YetAnotherLossyProposal(yat); // proposta que sera aceita (sempre perde)
+    gainProposal = new YetAnotherGainProposal(yat); // proposta que o daoowner doa pro contrato dinheiro...
+    yat.approve(address(gainProposal), startingGainOffered); // permite o contrato que doa ter o dinheiro
+    tinyDAO = new TinyDAO(MAX_CONCURRENT_PROPOSALS); // cria dao com 2 propostas como cap
+    // so dando governance tokens pros outros
+    tinyDAO.getDaoGovernanceToken().transfer(daoShareholder1, BASE_SHAREHOLDERS_AMOUNT); 
     tinyDAO.getDaoGovernanceToken().transfer(daoShareholder2, BASE_SHAREHOLDERS_AMOUNT);
+    // da um pouquinho de yat pro tinydao pra facilitar meus trabalhos
     yat.transfer(address(tinyDAO), 5000);
     vm.stopPrank();
   }
@@ -40,25 +42,31 @@ contract TinyDAOTest is Test {
     vm.expectRevert(); // n pode quem n tem token
     tinyDAO.doProposal(idAccepted,description,yat,acceptedProposal,1);
 
-    vm.startPrank(daoOwner);
+    vm.startPrank(daoOwner); // quem tem token pode propor
     tinyDAO.doProposal(idAccepted,description,yat,acceptedProposal,1);
     vm.stopPrank();
   }
 
   function testCanProposeAgainWhenVotedAndAtLimitBefore() public {
     vm.startPrank(daoOwner);
-    tinyDAO.doProposal(idRejected,description,yat,acceptedProposal,1);
-    vm.stopPrank();
-
-    vm.startPrank(daoShareholder1);
-    tinyDAO.doProposal(idRejected+1,description,yat,acceptedProposal,1);
+    tinyDAO.doProposal(idRejected,description,yat,acceptedProposal,1); // propoe uma
     vm.stopPrank();
 
     vm.startPrank(daoShareholder2);
     vm.expectRevert();
-    tinyDAO.doProposal(idRejected+2,description,yat,acceptedProposal,1);
+    tinyDAO.doProposal(idRejected,description,yat,acceptedProposal,1); // propos igual nao pode!
     vm.stopPrank();
 
+    vm.startPrank(daoShareholder1);
+    tinyDAO.doProposal(idRejected+1,description,yat,acceptedProposal,1); // propo duas
+    vm.stopPrank();
+
+    vm.startPrank(daoShareholder2);
+    vm.expectRevert();
+    tinyDAO.doProposal(idRejected+2,description,yat,acceptedProposal,1); // bate no limite!
+    vm.stopPrank();
+
+    // rejeitar proposta para ver se reseta o cap
     vm.startPrank(daoShareholder1);
     tinyDAO.vote(daoShareholder1, idRejected, TinyDAO.Votes.VoteAgainst);
     vm.stopPrank();
@@ -70,22 +78,22 @@ contract TinyDAOTest is Test {
     assert(tinyDAO.verifyVoted(idRejected));
 
     vm.startPrank(daoOwner);
-    tinyDAO.doProposal(idRejected+100,description,yat,acceptedProposal,1);
+    tinyDAO.doProposal(idRejected+100,description,yat,acceptedProposal,1); // cap resetado!
     vm.stopPrank();
   }
 
   function testCanProposeTillTheLimit() public {
     vm.startPrank(daoOwner);
-    tinyDAO.doProposal(idRejected,description,yat,acceptedProposal,1);
+    tinyDAO.doProposal(idRejected,description,yat,acceptedProposal,1); // propoe 1
     vm.stopPrank();
 
     vm.startPrank(daoShareholder1);
-    tinyDAO.doProposal(idRejected+1,description,yat,acceptedProposal,1);
+    tinyDAO.doProposal(idRejected+1,description,yat,acceptedProposal,1); // propoe 2
     vm.stopPrank();
 
     vm.startPrank(daoShareholder2);
     vm.expectRevert();
-    tinyDAO.doProposal(idRejected+2,description,yat,acceptedProposal,1);
+    tinyDAO.doProposal(idRejected+2,description,yat,acceptedProposal,1); // rejeita, bateu no limite concorrencia!
     vm.stopPrank();
   }
 
@@ -97,14 +105,16 @@ contract TinyDAOTest is Test {
     assert(tinyDAO.verifyVoted(idAccepted) == false);
     vm.startPrank(daoShareholder1);
     vm.expectRevert();
-    tinyDAO.executeProposal(idAccepted);
+    tinyDAO.executeProposal(idAccepted); // sem quorum suficiente para executar
     vm.stopPrank();
+
+    assert(tinyDAO.verifyVoted(idAccepted) == false); // confirmando sem quorum
 
     vm.startPrank(daoShareholder2);
-    tinyDAO.vote(daoShareholder2, idAccepted, TinyDAO.Votes.VoteFor);
+    tinyDAO.vote(daoShareholder2, idAccepted, TinyDAO.Votes.VoteFor); // vota primeiro
     vm.stopPrank();
 
-    assert(tinyDAO.verifyVoted(idAccepted) == true);
+    assert(tinyDAO.verifyVoted(idAccepted) == true); // tem quorum suficiente!
   }
 
   function testCanReward() public {
@@ -126,9 +136,9 @@ contract TinyDAOTest is Test {
 
     vm.startPrank(daoShareholder1);
     uint baldaobefore = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
-    tinyDAO.executeProposal(idAccepted);
+    tinyDAO.executeProposal(idAccepted); // se passar
     uint baldaoafter = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
-    assert(baldaoafter > baldaobefore);
+    assert(baldaoafter > baldaobefore); // recompensar em DaoTokens quem ajudou a DAO
     vm.stopPrank();
 
   }
@@ -153,7 +163,7 @@ contract TinyDAOTest is Test {
     uint baldaobefore = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
     tinyDAO.executeProposal(idAccepted);
     uint baldaoafter = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
-    assert(baldaobefore > baldaoafter);
+    assert(baldaobefore > baldaoafter); // penalizar em DaoGovernanceTokens quem sugeriu coisa ruim
     vm.stopPrank();
   }
   function testCanUpgrade() public {
@@ -180,8 +190,8 @@ contract TinyDAOTest is Test {
     tinyDAO.executeProposal(idAccepted);
     uint baldaoafter = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
     uint balyatafter = yat.balanceOf(daoShareholder1);
-    assert(baldaoafter - baldaobefore == startingGainOffered);
-    assert(balyatafter - balyatbefore == startingGainOffered * startingShare / 100);
+    assert(baldaoafter - baldaobefore == startingGainOffered); // checa ganho em DaoGovernanceToken
+    assert(balyatafter - balyatbefore == startingGainOffered * startingShare / 100); // checa ganho em tokens usados
     vm.stopPrank();
 
     // checar se tem update
@@ -205,7 +215,7 @@ contract TinyDAOTest is Test {
     assert(tinyDAO.verifyVoted(idAccepted) == true);
 
     vm.startPrank(daoShareholder2);
-    tinyDAO.upgrade(idAccepted);
+    tinyDAO.upgrade(idAccepted); // faz upgrade
     vm.stopPrank();
 
     // testar nova distribuicao
@@ -241,8 +251,8 @@ contract TinyDAOTest is Test {
     baldaoafter = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
     balyatafter = yat.balanceOf(daoShareholder1);
 
-    assert(baldaoafter - baldaobefore == startingGainOffered);
-    assert(balyatafter - balyatbefore == startingGainOffered * newShare / 100);
+    assert(baldaoafter - baldaobefore == startingGainOffered); // ganha tokens de governança
+    assert(balyatafter - balyatbefore == startingGainOffered * newShare / 100); // muda recompensa
     vm.stopPrank();
   }
 }

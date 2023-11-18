@@ -5,6 +5,10 @@ import "src/IProposal.sol";
 import "src/IDividendManager.sol";
 import "src/YetAnotherToken.sol";
 
+/**
+ * YetAnotherLossyProposal
+ Eh um contrato que sempre perde, transfere para um rapaz aleatorio
+ */
 contract YetAnotherLossyProposal is IProposal {
   bool hasFinished;
   ERC20 token;
@@ -23,8 +27,8 @@ contract YetAnotherLossyProposal is IProposal {
   function executeProposal() external {
     uint contractAllowance = token.allowance(msg.sender, address(this));
     require(contractAllowance > 0, "O contrato deve ter tokens transferiveis...");
-    token.transferFrom(msg.sender, address(this), contractAllowance);
-    token.transfer(generateRandomAddress(), contractAllowance);
+    token.transferFrom(msg.sender, address(this), contractAllowance); // recebe da DAO
+    token.transfer(generateRandomAddress(), contractAllowance); // perde o dinheiro
     profits = int(token.balanceOf(address(this))) - int(contractAllowance);
     hasFinished = true;
   }
@@ -33,6 +37,9 @@ contract YetAnotherLossyProposal is IProposal {
 
   function distributeProfits(address proposer, IDividendManager manager) external {
     require (isFinished(), "Nao foi executado ainda!");
+    if (profits > 0) {
+      token.approve(address(manager), uint(profits));
+    }
     manager.distributeProfits(proposer, token, getProfits());
   }
 }

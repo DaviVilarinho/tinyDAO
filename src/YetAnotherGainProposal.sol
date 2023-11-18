@@ -5,6 +5,10 @@ import "src/IProposal.sol";
 import "src/IDividendManager.sol";
 import "src/YetAnotherToken.sol";
 
+/**
+ * YetAnotherGainProposal
+ Eh um contrato proposal que recebe uma doacao do instanciador e repassa para dao+proposer, entao sempre tem lucro
+ */
 contract YetAnotherGainProposal is IProposal {
   bool hasFinished;
   ERC20 token;
@@ -17,14 +21,9 @@ contract YetAnotherGainProposal is IProposal {
     charitableOne = msg.sender;
   }
 
-  function generateRandomAddress() private returns (address) {
-    bytes32 hash = keccak256(abi.encodePacked(block.timestamp, msg.sender, block.number));
-    return address(uint160(uint256(hash)));
-  }
-
   function executeProposal() external {
     uint contractAllowance = token.allowance(charitableOne, address(this));
-    token.transferFrom(charitableOne, address(this), contractAllowance);
+    token.transferFrom(charitableOne, address(this), contractAllowance); // pega dinheiro do instanciador
     profits = int(contractAllowance);
     hasFinished = true;
   }

@@ -19,7 +19,7 @@ contract TinyDAO {
     uint256 id;
     address proposer;
     string description;
-    ERC20 tokenType;
+    ERC20 tokenType; // token usado na proposta (se preciso)
     uint256 amount;
 
     IProposal oneProposal;
@@ -30,6 +30,7 @@ contract TinyDAO {
 
     ProposalState proposalState;
 
+    // logica upgradable se for de upgrade
     bool isUpgrade;
     IDividendManager newDividendManager;
   }
@@ -40,11 +41,11 @@ contract TinyDAO {
   IDividendManager dividendManager;
 
   constructor (uint256 max_concurrent_proposals) {
-    daoGovernanceToken = new DaoGovernanceToken("DaoGovernanceToken", "DGT");
-    daoGovernanceToken.transfer(msg.sender, daoGovernanceToken.balanceOf(address(this)));
+    daoGovernanceToken = new DaoGovernanceToken("DaoGovernanceToken", "DGT"); // poderia ser repassavel...
+    daoGovernanceToken.transfer(msg.sender, daoGovernanceToken.balanceOf(address(this))); // poderia ser ICO
     concurrentProposals = 0;
     MAX_CONCURRENT_PROPOSALS = max_concurrent_proposals;
-    dividendManager = new EqualDividendManager(address(this), daoGovernanceToken, 50);
+    dividendManager = new EqualDividendManager(address(this), daoGovernanceToken, 50); // inicializa meio a meio a distribuicao
   }
 
   function getDaoGovernanceToken() public view returns (DaoGovernanceToken) {
@@ -81,7 +82,7 @@ contract TinyDAO {
     proposals[id].proposalState = ProposalState.Done;
     emit Concluded(id);
 
-    dividendManager = proposals[id].newDividendManager;
+    dividendManager = proposals[id].newDividendManager; // so setar novo distribuidor
   }
   function executeProposal(uint256 id) public {
     require(proposals[id].isUpgrade == false, "Proposta e upgrade");
@@ -91,28 +92,28 @@ contract TinyDAO {
     emit Concluded(id);
 
     proposals[id].tokenType.approve(address(proposals[id].oneProposal),
-                                    proposals[id].amount);
-    proposals[id].oneProposal.executeProposal();
-    proposals[id].oneProposal.distributeProfits(proposals[id].proposer, dividendManager);
+                                    proposals[id].amount); // permite transferencia
+    proposals[id].oneProposal.executeProposal(); // executar
+    proposals[id].oneProposal.distributeProfits(proposals[id].proposer, dividendManager); // distribuir com o dividendManager e suas politicas
   }
 
   function verifyVoted(uint256 id) public returns (bool) {
     require(proposals[id].id != 0x0, "Proposta deve existir...");
     uint256 daoTokenAmount = daoGovernanceToken.totalSupply();
-    uint quorum = daoTokenAmount / 2;
-    if (proposals[id].votesFor > quorum) {
+    uint quorum = daoTokenAmount / 2; // quanto eh necessario para executar (metade)
+    if (proposals[id].votesFor > quorum) { // votado aceito
       proposals[id].proposalState = ProposalState.Approved;
-      concurrentProposals--;
+      concurrentProposals--; // permite mais propostas
       emit Approved(id);
       return true;
     }
-    if (proposals[id].votesAgainst > quorum) {
+    if (proposals[id].votesAgainst > quorum) { // votado recusado
       proposals[id].proposalState = ProposalState.Rejected;
-      concurrentProposals--;
+      concurrentProposals--; // permite mais propostas
       emit Rejected(id);
       return true;
     }
-    return false;
+    return false; // nao acabou ainda...
   }
 
   function doUpgradeProposal(uint256 id,
@@ -128,13 +129,14 @@ contract TinyDAO {
     proposals[id].votesAgainst = 0;
     proposals[id].proposer = msg.sender;
     proposals[id].proposalState = ProposalState.Proposed;
+    // logica que permite upgrade
     proposals[id].isUpgrade = true;
     proposals[id].newDividendManager = newDividendManager;
     concurrentProposals++;
 
     emit Proposed(id);
 
-    vote(msg.sender, id, Votes.VoteFor);
+    vote(msg.sender, id, Votes.VoteFor); // proposer vota
   }
 
   function doProposal(uint256 id,
@@ -159,6 +161,6 @@ contract TinyDAO {
 
     emit Proposed(id);
 
-    vote(msg.sender, id, Votes.VoteFor);
+    vote(msg.sender, id, Votes.VoteFor); // proposer vota
   }
 }
