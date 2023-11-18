@@ -9,6 +9,7 @@ contract EqualDividendManager is IDividendManager {
   DaoGovernanceToken daoGovernanceToken;
   uint proposerShare;
   constructor (address daoAddress, DaoGovernanceToken daoToken, uint proposerShareContract) {
+    require(proposerShareContract <= 100);
     dao = daoAddress;
     daoGovernanceToken = daoToken;
     proposerShare = proposerShareContract;
