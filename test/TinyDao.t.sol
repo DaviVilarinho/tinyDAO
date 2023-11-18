@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import "src/TinyDAO.sol";
 import "src/YetAnotherToken.sol";
 import "src/YetAnotherLossyProposal.sol";
+import "src/YetAnotherGainProposal.sol";
 
 contract TinyDAOTest is Test {
   address daoOwner = address(0x1);
@@ -15,11 +16,14 @@ contract TinyDAOTest is Test {
   TinyDAO tinyDAO;
   ERC20 yat;
   IProposal acceptedProposal;
+  IProposal gainProposal;
 
   function setUp() public {
     vm.startPrank(daoOwner);
     yat = new YetAnotherToken();
     acceptedProposal = new YetAnotherLossyProposal(yat);
+    gainProposal = new YetAnotherGainProposal(yat);
+    yat.approve(address(gainProposal), 100);
     tinyDAO = new TinyDAO(MAX_CONCURRENT_PROPOSALS);
     tinyDAO.getDaoGovernanceToken().transfer(daoShareholder1, BASE_SHAREHOLDERS_AMOUNT);
     tinyDAO.getDaoGovernanceToken().transfer(daoShareholder2, BASE_SHAREHOLDERS_AMOUNT);
@@ -103,7 +107,29 @@ contract TinyDAOTest is Test {
   }
 
   function testCanReward() public {
-    address a = daoOwner;
+    vm.startPrank(daoShareholder1);
+    tinyDAO.doProposal(idAccepted,description,yat,gainProposal,1);
+    vm.stopPrank();
+
+    assert(tinyDAO.verifyVoted(idAccepted) == false);
+    vm.startPrank(daoShareholder1);
+    vm.expectRevert();
+    tinyDAO.executeProposal(idAccepted);
+    vm.stopPrank();
+
+    vm.startPrank(daoShareholder2);
+    tinyDAO.vote(daoShareholder2, idAccepted, TinyDAO.Votes.VoteFor);
+    vm.stopPrank();
+
+    assert(tinyDAO.verifyVoted(idAccepted) == true);
+
+    vm.startPrank(daoShareholder1);
+    uint balbefore = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
+    tinyDAO.executeProposal(idAccepted);
+    uint balafter = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
+    assert(balafter > balbefore);
+    vm.stopPrank();
+
   }
   function testCanPunish() public {
     vm.startPrank(daoShareholder1);

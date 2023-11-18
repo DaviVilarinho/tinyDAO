@@ -21,7 +21,7 @@ contract EqualDividendManager is IDividendManager {
     }
     uint uintamount = uint(amount);
 
-        uint tokenAllowance = token.allowance(msg.sender, address(this));
+    uint tokenAllowance = token.allowance(msg.sender, address(this));
     require(tokenAllowance > 0, "O contrato precisa repassar os lucros");
     token.transferFrom(msg.sender, address(this), tokenAllowance);
     daoGovernanceToken.reward(proposer, uintamount);
