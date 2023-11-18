@@ -1,66 +1,23 @@
-## Foundry
+# tinyDAO
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Isto é uma implementação de uma DAO feita como uma atividade para entender:
+1. o funcionamento
+2. a complexidade
+3. a interface
 
-Foundry consists of:
+De uma DAO.
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+Realizada apenas em solidity e foundry, testei com `forge test -vvv -via-ir` se assim for de seu interesse testar.
 
-## Documentation
+## DAO
 
-https://book.getfoundry.sh/
+Aos que não conhecem, uma DAO seria uma organização descentralizada, uma *empresa* não centralizada, ou seja, baseado apenas em votação, como podemos organizar a empresa? Votando no que ela faz, ora!
 
-## Usage
+Então o funcionamento é simples, porém cheio de minúcias:
+- criar, como distribuir os tokens de governança? Para o instanciador? E como receber o patrimônio inicial?
+- propor algo para ser executado
+- votar (proporcionalmente aos DAO Tokens)
+- executar ao votar ok ou simplesmente não executar
+- controlar quantidade de propostas
+- organizar distribuição: neste caso usei um padrão de código similar ao *Strategy*, recebe um contrato que decide como distribuir...
 
-### Build
-
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
