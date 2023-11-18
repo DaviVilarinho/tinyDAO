@@ -44,7 +44,7 @@ contract TinyDAO {
     daoGovernanceToken.transfer(msg.sender, daoGovernanceToken.balanceOf(address(this)));
     concurrentProposals = 0;
     MAX_CONCURRENT_PROPOSALS = max_concurrent_proposals;
-    dividendManager = new EqualDividendManager(address(this), daoGovernanceToken);
+    dividendManager = new EqualDividendManager(address(this), daoGovernanceToken, 50);
   }
 
   function getDaoGovernanceToken() public view returns (DaoGovernanceToken) {
@@ -78,7 +78,6 @@ contract TinyDAO {
     require(proposals[id].isUpgrade, "Proposta nao e upgrade");
     require(proposals[id].id != 0x0, "Proposta deve existir...");
     require(proposals[id].proposalState == ProposalState.Approved, "Proposta deve estar aprovada...");
-    concurrentProposals--;
     proposals[id].proposalState = ProposalState.Done;
     emit Concluded(id);
 
@@ -127,6 +126,7 @@ contract TinyDAO {
     proposals[id].description = description;
     proposals[id].votesFor = 0;
     proposals[id].votesAgainst = 0;
+    proposals[id].proposer = msg.sender;
     proposals[id].proposalState = ProposalState.Proposed;
     proposals[id].isUpgrade = true;
     proposals[id].newDividendManager = newDividendManager;
@@ -151,6 +151,7 @@ contract TinyDAO {
     proposals[id].tokenType = tokenType;
     proposals[id].amount = amount;
     proposals[id].votesFor = 0;
+    proposals[id].proposer = msg.sender;
     proposals[id].votesAgainst = 0;
     proposals[id].oneProposal = proposalContract;
     proposals[id].proposalState = ProposalState.Proposed;

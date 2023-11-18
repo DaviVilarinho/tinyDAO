@@ -40,7 +40,7 @@ contract TinyDAOTest is Test {
     vm.stopPrank();
   }
 
-  function testCanProposeTillTheLimit() public {
+  function testCanProposeAgainWhenVotedAndAtLimitBefore() public {
     vm.startPrank(daoOwner);
     tinyDAO.doProposal(idRejected,description,yat,acceptedProposal,1);
     vm.stopPrank();
@@ -69,6 +69,21 @@ contract TinyDAOTest is Test {
     vm.stopPrank();
   }
 
+  function testCanProposeTillTheLimit() public {
+    vm.startPrank(daoOwner);
+    tinyDAO.doProposal(idRejected,description,yat,acceptedProposal,1);
+    vm.stopPrank();
+
+    vm.startPrank(daoShareholder1);
+    tinyDAO.doProposal(idRejected+1,description,yat,acceptedProposal,1);
+    vm.stopPrank();
+
+    vm.startPrank(daoShareholder2);
+    vm.expectRevert();
+    tinyDAO.doProposal(idRejected+2,description,yat,acceptedProposal,1);
+    vm.stopPrank();
+  }
+
   function testDoesGovernanceMattersForVote() public {
     vm.startPrank(daoShareholder1);
     tinyDAO.doProposal(idAccepted,description,yat,acceptedProposal,1);
@@ -91,7 +106,28 @@ contract TinyDAOTest is Test {
     address a = daoOwner;
   }
   function testCanPunish() public {
-    address a = daoOwner;
+    vm.startPrank(daoShareholder1);
+    tinyDAO.doProposal(idAccepted,description,yat,acceptedProposal,1);
+    vm.stopPrank();
+
+    assert(tinyDAO.verifyVoted(idAccepted) == false);
+    vm.startPrank(daoShareholder1);
+    vm.expectRevert();
+    tinyDAO.executeProposal(idAccepted);
+    vm.stopPrank();
+
+    vm.startPrank(daoShareholder2);
+    tinyDAO.vote(daoShareholder2, idAccepted, TinyDAO.Votes.VoteFor);
+    vm.stopPrank();
+
+    assert(tinyDAO.verifyVoted(idAccepted) == true);
+
+    vm.startPrank(daoShareholder1);
+    uint balbefore = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
+    tinyDAO.executeProposal(idAccepted);
+    uint balafter = tinyDAO.getDaoGovernanceToken().balanceOf(daoShareholder1);
+    assert(balbefore > balafter);
+    vm.stopPrank();
   }
   function testCanUpgrade() public {
     address a = daoOwner;

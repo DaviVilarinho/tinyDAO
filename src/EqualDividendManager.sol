@@ -7,9 +7,11 @@ import "OpenZeppelin/openzeppelin-contracts@3.0.0/contracts/token/ERC20/ERC20.so
 contract EqualDividendManager is IDividendManager {
   address dao;
   DaoGovernanceToken daoGovernanceToken;
-  constructor (address daoAddress, DaoGovernanceToken daoToken) {
+  uint proposerShare;
+  constructor (address daoAddress, DaoGovernanceToken daoToken, uint proposerShareContract) {
     dao = daoAddress;
     daoGovernanceToken = daoToken;
+    proposerShare = proposerShareContract;
   }
 
   function distributeProfits(address proposer, ERC20 token, int amount) external {
@@ -32,6 +34,6 @@ contract EqualDividendManager is IDividendManager {
     return dao;
   }
   function getProposerShare() public view returns (uint) {
-    return 50;
+    return proposerShare;
   }
 }
